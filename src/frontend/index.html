@@ -4,8 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NutriQuest</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
+        .app-container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+        .xp-bar { background: #ddd; border-radius: 10px; height: 20px; overflow: hidden; margin-top: 10px; }
+        .xp-fill { background: #4caf50; width: 85%; height: 100%; }
+        .btn { display: block; width: 100%; padding: 10px; background: #007bff; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; }
+    </style>
 </head>
 <body>
-Frontend Test
+    <div class="app-container">
+        <div class="header">
+            <h2>📱 NutriQuest</h2>
+            <p>👤 Dein Avatar: <strong>Ernährungs-Ritter</strong></p>
+            <p>⭐ Level 5</p>
+            <div class="xp-bar">
+                <div class="xp-fill"></div>
+            </div>
+            <small>850 / 1000 XP</small>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <h1 style="color: #e53935;">1200 kcal</h1>
+            <p>heute noch übrig</p>
+        </div>
+
+        <a href="#" class="btn" id="scanBtn">📷 Barcode Scannen</a>
+    </div>
 </body>
 </html>
