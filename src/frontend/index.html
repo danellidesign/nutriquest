@@ -4,33 +4,86 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NutriQuest</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
         .app-container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
         .xp-bar { background: #ddd; border-radius: 10px; height: 20px; overflow: hidden; margin-top: 10px; }
-        .xp-fill { background: #4caf50; width: 85%; height: 100%; }
-        .btn { display: block; width: 100%; padding: 10px; background: #007bff; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; }
+        .xp-fill { background: #4caf50; width: 85%; height: 100%; transition: width 0.5s; }
+        .btn { display: block; width: 100%; padding: 10px; background: #007bff; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; cursor: pointer; border: none; }
+        #reader { width: 100%; margin-top: 20px; display: none; }
+        #resultArea { margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 5px; text-align: center; display: none; border: 1px solid #4caf50; }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <div class="header">
-            <h2>📱 NutriQuest</h2>
-            <p>👤 Dein Avatar: <strong>Ernährungs-Ritter</strong></p>
-            <p>⭐ Level 5</p>
-            <div class="xp-bar">
-                <div class="xp-fill"></div>
-            </div>
-            <small>850 / 1000 XP</small>
-        </div>
 
-        <div style="text-align: center; margin: 30px 0;">
-            <h1 style="color: #e53935;">1200 kcal</h1>
-            <p>heute noch übrig</p>
+<div class="app-container">
+    <div class="header">
+        <h2>NutriQuest</h2>
+        <p><strong>Nickname</strong></p>
+        <p>Level 5</p>
+        <div class="xp-bar">
+            <div class="xp-fill"></div>
         </div>
-
-        <a href="#" class="btn" id="scanBtn">📷 Barcode Scannen</a>
+        <small>850 / 1000 XP</small>
     </div>
+
+    <button class="btn" id="scanBtn">📷 Barcode Scannen</button>
+    <div id="reader"></div>
+
+    <div id="resultArea">
+        <h3 style="margin: 0; color: #2e7d32;">Code erkannt!</h3>
+        <p id="barcodeResult"></p>
+    </div>
+</div>
+
+<script>
+    const scanBtn = document.getElementById('scanBtn');
+    const readerDiv = document.getElementById('reader');
+    const resultArea = document.getElementById('resultArea');
+    const barcodeResult = document.getElementById('barcodeResult');
+    let html5QrcodeScanner;
+
+    // add click handler to scan button
+    scanBtn.addEventListener('click', () => {
+        scanBtn.style.display = 'none';
+        readerDiv.style.display = 'block';
+        resultArea.style.display = 'none';
+
+        // init QR-Code scanner object
+        html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false
+        );
+
+        html5QrcodeScanner.render(onScanSuccess);
+    });
+
+    function onScanSuccess(decodedText) {
+        html5QrcodeScanner.clear();
+        readerDiv.style.display = 'none';
+        scanBtn.style.display = 'block';
+
+        resultArea.style.display = 'block';
+        barcodeResult.innerText = "EAN: " + decodedText;
+
+        sendToBackend(decodedText);
+    }
+
+    // send ean barcode to backend
+    async function sendToBackend(barcode) {
+        try {
+            const response = await fetch('/api/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ barcode: barcode })
+            });
+            const data = await response.json();
+            console.log("Antwort vom Server:", data);
+        } catch (error) {
+            console.error("Fehler beim Senden:", error);
+        }
+    }
+</script>
 </body>
 </html>
