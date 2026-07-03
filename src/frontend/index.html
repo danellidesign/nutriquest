@@ -70,18 +70,33 @@
         sendToBackend(decodedText);
     }
 
-    // send ean barcode to backend
+    // send to backend
     async function sendToBackend(barcode) {
         try {
+            // show loading placeholder
+            barcodeResult.innerText = "EAN: " + barcode + "\nSuche in Datenbank...";
+
             const response = await fetch('/api/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ barcode: barcode })
             });
+
             const data = await response.json();
-            console.log("Antwort vom Server:", data);
+
+            // show result
+            if(data.success) {
+                barcodeResult.innerHTML = `
+                <strong style="font-size: 1.2em;">${data.name}</strong><br><br>
+                Kalorien: <strong>${data.kcal} kcal</strong> pro 100g<br><br>
+                <button class="btn" style="background-color: #4caf50;" onclick="alert(':)!')">Als Mahlzeit eintragen</button>
+            `;
+            } else {
+                barcodeResult.innerHTML = `<span style="color: red;">${data.message}</span>`;
+            }
         } catch (error) {
             console.error("Fehler beim Senden:", error);
+            barcodeResult.innerText = "Verbindungsfehler zum Server.";
         }
     }
 </script>
