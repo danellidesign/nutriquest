@@ -52,6 +52,7 @@
         <h3 style="margin: 0; color: #2e7d32;">Code erkannt!</h3>
         <p id="barcodeResult"></p>
     </div>
+    <button class="btn" style="background: #ff5252;" onclick="logout()">Ausloggen</button>
 </div>
 
 <script>
@@ -147,33 +148,41 @@
         });
         const data = await res.json();
         if (data.success) {
-            localStorage.setItem('nutriQuestUserId', data.userId);
-            loadGame(data.userId);
+            localStorage.setItem('nutriQuestToken', data.token);
+            loadGame();
         } else {
             document.getElementById('auth-message').innerText = data.message;
         }
     }
 
     function logout() {
-        localStorage.removeItem('nutriQuestUserId');
+        localStorage.removeItem('nutriQuestToken');
         location.reload();
     }
 
     window.onload = () => {
-        const savedUserId = localStorage.getItem('nutriQuestUserId');
-        if (savedUserId) {
-            loadGame(savedUserId);
-        }
+        const savedToken = localStorage.getItem('nutriQuestToken');
+        if (savedToken) loadGame(); // Wenn ein Token da ist, direkt starten
     };
 
-    async function loadGame(userId) {
-        loggedInUserId = userId;
+    async function loadGame() {
+        const token = localStorage.getItem('nutriQuestToken');
+
+        // Mit dem Token im Header rufen wir unsere Daten ab
+        const response = await fetch('/api/user/me', {
+            headers: { 'Authorization': token }
+        });
+
+        if (response.status === 403 || response.status === 401) {
+            // Token ist ungültig (jemand hat manipuliert) -> Rauswerfen!
+            logout();
+            return;
+        }
+
         document.getElementById('auth-container').style.display = 'none';
         document.getElementById('app-container').style.display = 'block';
 
-        const response = await fetch('/api/user/' + userId);
         const data = await response.json();
-
         dailyKcal = data.daily_kcal;
         currentXp = data.xp;
         currentLevel = data.level;
@@ -207,9 +216,12 @@
 
             // store user data
             await fetch('/api/user/update', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ userId: loggedInUserId, level: currentLevel, xp: currentXp, daily_kcal: dailyKcal })
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': localStorage.getItem('nutriQuestToken') // AUSWEIS VORZEIGEN
+                },
+                body: JSON.stringify({ level: currentLevel, xp: currentXp, daily_kcal: dailyKcal })
             });
 
         } else {

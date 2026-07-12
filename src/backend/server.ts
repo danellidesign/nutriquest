@@ -2,7 +2,9 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import sqlite3 from 'sqlite3';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
+const SECRET_KEY = "a-very-secret-key";
 const app = express();
 
 app.use(express.json());
@@ -45,32 +47,42 @@ app.post('/api/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
 
     db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user: any) => {
-        if (!user) {
-            return res.status(400).json({ success: false, message: "Nutzer nicht gefunden!" });
-        }
+        if (!user) return res.status(400).json({ success: false, message: "Nutzer nicht gefunden!" });
 
         const match = await bcrypt.compare(password, user.password);
         if (match) {
-            res.json({ success: true, userId: user.id });
+            const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '24h' });
+            res.json({ success: true, token: token });
         } else {
             res.status(400).json({ success: false, message: "Falsches Passwort!" });
         }
     });
 });
 
+const authenticateToken = (req: any, res: Response, next: any) => {
+    const token = req.headers['authorization'];
+    if (!token) return res.status(401).json({ message: "Kein Token gefunden" });
+
+    jwt.verify(token, SECRET_KEY, (err: any, decodedUser: any) => {
+        if (err) return res.status(403).json({ message: "Token ungültig oder abgelaufen" });
+        req.user = decodedUser;
+        next();
+    });
+};
 
 // api routes for db
 
 // get user data
-app.get('/api/user/:id', (req: Request, res: Response) => {
-    const userId = req.params.id;
+app.get('/api/user/me', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
     db.get("SELECT level, xp, daily_kcal FROM users WHERE id = ?", [userId], (err, row) => {
         res.json(row);
     });
 });
 
-app.post('/api/user/update', (req: Request, res: Response) => {
-    const { userId, level, xp, daily_kcal } = req.body;
+app.post('/api/user/update', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const { level, xp, daily_kcal } = req.body;
     db.run("UPDATE users SET level = ?, xp = ?, daily_kcal = ? WHERE id = ?",
         [level, xp, daily_kcal, userId],
         (err) => {
