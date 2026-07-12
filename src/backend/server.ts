@@ -1,9 +1,54 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import sqlite3 from 'sqlite3';
 
 const app = express();
 
 app.use(express.json());
+
+// init db
+const db = new sqlite3.Database('./nutriquest.db', (err) => {
+    if (err) console.error("Datenbank-Fehler:", err.message);
+    else console.log("💾 Mit SQLite-Datenbank verbunden.");
+});
+
+// create table if it does not exist
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        level INTEGER,
+        xp INTEGER,
+        daily_kcal INTEGER
+    )`);
+
+    //
+    db.get("SELECT count(*) as count FROM users", (err, row: any) => {
+        if (row.count === 0) {
+            db.run("INSERT INTO users (id, level, xp, daily_kcal) VALUES (1, 5, 850, 1200)");
+        }
+    });
+});
+
+// api routes for db
+
+// get user data
+app.get('/api/user', (req: Request, res: Response) => {
+    db.get("SELECT * FROM users WHERE id = 1", (err, row) => {
+        res.json(row);
+    });
+});
+
+// save userdata
+app.post('/api/user/update', (req: Request, res: Response) => {
+    const { level, xp, daily_kcal } = req.body;
+    db.run("UPDATE users SET level = ?, xp = ?, daily_kcal = ? WHERE id = 1",
+        [level, xp, daily_kcal],
+        (err) => {
+            if (err) res.status(500).json({ success: false });
+            else res.json({ success: true });
+        }
+    );
+});
 
 const PORT = 3000;
 

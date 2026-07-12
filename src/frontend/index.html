@@ -22,11 +22,16 @@
     <div class="header">
         <h2>NutriQuest</h2>
         <p><strong>Nickname</strong></p>
-        <p>Level 5</p>
+        <p id="levelDisplay">⭐ Level 5</p>
         <div class="xp-bar">
-            <div class="xp-fill"></div>
+            <div class="xp-fill" id="xpFill" style="width: 85%;"></div>
         </div>
-        <small>850 / 1000 XP</small>
+        <small id="xpText">850 / 1000 XP</small>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+        <h1 id="kcalDisplay" style="color: #e53935;">1200 kcal</h1>
+        <p>heute noch übrig</p>
     </div>
 
     <button class="btn" id="scanBtn">📷 Barcode Scannen</button>
@@ -70,6 +75,11 @@
         sendToBackend(decodedText);
     }
 
+    let dailyKcal = 1200;
+    let currentXp = 850;
+    let currentLevel = 5;
+    const maxXp = 1000;
+
     // send to backend
     async function sendToBackend(barcode) {
         try {
@@ -87,16 +97,44 @@
             // show result
             if(data.success) {
                 barcodeResult.innerHTML = `
-                <strong style="font-size: 1.2em;">${data.name}</strong><br><br>
-                Kalorien: <strong>${data.kcal} kcal</strong> pro 100g<br><br>
-                <button class="btn" style="background-color: #4caf50;" onclick="alert(':)!')">Als Mahlzeit eintragen</button>
-            `;
+                        <strong style="font-size: 1.2em;">${data.name}</strong><br><br>
+                        Kalorien: <strong>${data.kcal} kcal</strong> pro 100g<br><br>
+                        <button class="btn" style="background-color: #4caf50;" onclick="addMeal(${data.kcal})">Als Mahlzeit eintragen</button>
+                    `;
             } else {
                 barcodeResult.innerHTML = `<span style="color: red;">${data.message}</span>`;
             }
         } catch (error) {
             console.error("Fehler beim Senden:", error);
             barcodeResult.innerText = "Verbindungsfehler zum Server.";
+        }
+    }
+
+    // Mahlzeit hinzufügen
+    function addMeal(kcalPer100g) {
+        let grams = prompt("Wie viel Gramm hast du davon gegessen?", "100");
+
+        if (grams !== null && !isNaN(grams) && grams > 0) {
+
+            let consumedKcal = Math.round((kcalPer100g * grams) / 100);
+            dailyKcal -= consumedKcal;
+
+            currentXp += 75;
+
+            if (currentXp >= maxXp) {
+                currentLevel++;
+                currentXp -= maxXp; // add overflow xp to next level
+                alert("LEVEL UP! Du bist jetzt Level " + currentLevel + "!");
+            }
+
+            document.getElementById('kcalDisplay').innerText = dailyKcal + " kcal";
+            document.getElementById('levelDisplay').innerText = "⭐ Level " + currentLevel;
+            document.getElementById('xpText').innerText = currentXp + " / " + maxXp + " XP";
+            document.getElementById('xpFill').style.width = (currentXp / maxXp * 100) + "%";
+
+            document.getElementById('resultArea').style.display = 'none';
+        } else {
+            alert("Bitte gib eine gültige Grammzahl ein!");
         }
     }
 </script>
