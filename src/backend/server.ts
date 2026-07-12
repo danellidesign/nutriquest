@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import sqlite3 from 'sqlite3';
+import bcrypt from 'bcrypt';
 
 const app = express();
 
@@ -15,34 +16,63 @@ const db = new sqlite3.Database('./nutriquest.db', (err) => {
 // create table if it does not exist
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        level INTEGER,
-        xp INTEGER,
-        daily_kcal INTEGER
-    )`);
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     username TEXT UNIQUE,
+                     password TEXT,
+                     level INTEGER,
+                     xp INTEGER,
+                     daily_kcal INTEGER
+            )`);
+});
 
-    //
-    db.get("SELECT count(*) as count FROM users", (err, row: any) => {
-        if (row.count === 0) {
-            db.run("INSERT INTO users (id, level, xp, daily_kcal) VALUES (1, 5, 850, 1200)");
+app.post('/api/register', async (req: Request, res: Response) => {
+    const { username, password } = req.body;
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    db.run("INSERT INTO users (username, password, level, xp, daily_kcal) VALUES (?, ?, 1, 0, 2000)",
+        [username, hashedPassword],
+        function(err) {
+            if (err) {
+                res.status(400).json({ success: false, message: "Nutzername existiert bereits!" });
+            } else {
+                res.json({ success: true, userId: this.lastID });
+            }
+        });
+});
+
+app.post('/api/login', (req: Request, res: Response) => {
+    const { username, password } = req.body;
+
+    db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user: any) => {
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Nutzer nicht gefunden!" });
+        }
+
+        const match = await bcrypt.compare(password, user.password);
+        if (match) {
+            res.json({ success: true, userId: user.id });
+        } else {
+            res.status(400).json({ success: false, message: "Falsches Passwort!" });
         }
     });
 });
 
+
 // api routes for db
 
 // get user data
-app.get('/api/user', (req: Request, res: Response) => {
-    db.get("SELECT * FROM users WHERE id = 1", (err, row) => {
+app.get('/api/user/:id', (req: Request, res: Response) => {
+    const userId = req.params.id;
+    db.get("SELECT level, xp, daily_kcal FROM users WHERE id = ?", [userId], (err, row) => {
         res.json(row);
     });
 });
 
-// save userdata
 app.post('/api/user/update', (req: Request, res: Response) => {
-    const { level, xp, daily_kcal } = req.body;
-    db.run("UPDATE users SET level = ?, xp = ?, daily_kcal = ? WHERE id = 1",
-        [level, xp, daily_kcal],
+    const { userId, level, xp, daily_kcal } = req.body;
+    db.run("UPDATE users SET level = ?, xp = ?, daily_kcal = ? WHERE id = ?",
+        [level, xp, daily_kcal, userId],
         (err) => {
             if (err) res.status(500).json({ success: false });
             else res.json({ success: true });

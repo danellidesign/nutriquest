@@ -14,11 +14,22 @@
         .btn { display: block; width: 100%; padding: 10px; background: #007bff; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; cursor: pointer; border: none; }
         #reader { width: 100%; margin-top: 20px; display: none; }
         #resultArea { margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 5px; text-align: center; display: none; border: 1px solid #4caf50; }
+        #auth-container, #app-container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        input { width: 90%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-<div class="app-container">
+<div id="auth-container">
+    <h2 style="text-align: center;">Willkommen bei NutriQuest</h2>
+    <input type="text" id="username" placeholder="Nutzername">
+    <input type="password" id="password" placeholder="Passwort">
+    <button class="btn" onclick="login()">Einloggen</button>
+    <button class="btn" style="background: #9e9e9e;" onclick="register()">Registrieren</button>
+    <p id="auth-message" style="color: red; text-align: center;"></p>
+</div>
+
+<div id="app-container" style="display: none;">
     <div class="header">
         <h2>NutriQuest</h2>
         <p><strong>Nickname</strong></p>
@@ -110,17 +121,64 @@
         }
     }
 
-    // load data from db on load
-    window.onload = async () => {
-        const response = await fetch('/api/user');
+    let loggedInUserId = null;
+
+    async function register() {
+        const user = document.getElementById('username').value;
+        const pass = document.getElementById('password').value;
+        const res = await fetch('/api/register', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("Erfolgreich registriert! Du kannst dich nun einloggen.");
+        } else {
+            document.getElementById('auth-message').innerText = data.message;
+        }
+    }
+
+    async function login() {
+        const user = document.getElementById('username').value;
+        const pass = document.getElementById('password').value;
+        const res = await fetch('/api/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        if (data.success) {
+            localStorage.setItem('nutriQuestUserId', data.userId);
+            loadGame(data.userId);
+        } else {
+            document.getElementById('auth-message').innerText = data.message;
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('nutriQuestUserId');
+        location.reload();
+    }
+
+    window.onload = () => {
+        const savedUserId = localStorage.getItem('nutriQuestUserId');
+        if (savedUserId) {
+            loadGame(savedUserId);
+        }
+    };
+
+    async function loadGame(userId) {
+        loggedInUserId = userId;
+        document.getElementById('auth-container').style.display = 'none';
+        document.getElementById('app-container').style.display = 'block';
+
+        const response = await fetch('/api/user/' + userId);
         const data = await response.json();
 
         dailyKcal = data.daily_kcal;
         currentXp = data.xp;
         currentLevel = data.level;
-
         updateUI();
-    };
+    }
 
     function updateUI() {
         document.getElementById('kcalDisplay').innerText = dailyKcal + " kcal";
@@ -129,7 +187,6 @@
         document.getElementById('xpFill').style.width = (currentXp / maxXp * 100) + "%";
     }
 
-    // Mahlzeit hinzufügen
     async function addMeal(kcalPer100g) {
         let grams = prompt("Wie viel Gramm hast du davon gegessen?", "100");
 
@@ -150,9 +207,9 @@
 
             // store user data
             await fetch('/api/user/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ level: currentLevel, xp: currentXp, daily_kcal: dailyKcal })
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ userId: loggedInUserId, level: currentLevel, xp: currentXp, daily_kcal: dailyKcal })
             });
 
         } else {

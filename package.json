@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/danellidesign/nutriquest#readme",
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
     "@types/node": "^26.0.1",
     "@types/sqlite3": "^3.1.11",
@@ -26,6 +27,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "express": "^5.2.1",
     "sqlite3": "^6.0.1"
   }
