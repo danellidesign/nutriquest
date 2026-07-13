@@ -7,7 +7,6 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
-        .app-container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
         .xp-bar { background: #ddd; border-radius: 10px; height: 20px; overflow: hidden; margin-top: 10px; }
         .xp-fill { background: #4caf50; width: 85%; height: 100%; transition: width 0.5s; }
@@ -45,6 +44,17 @@
         <p>heute noch übrig</p>
     </div>
 
+    <div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0; background: #eee; padding: 10px; border-radius: 8px;">
+        <button onclick="changeDate(-1)" style="border: none; background: none; font-size: 1.2em; cursor: pointer;">◀</button>
+        <strong id="dateDisplay" style="font-size: 0.9em;">Heute</strong>
+        <button onclick="changeDate(1)" style="border: none; background: none; font-size: 1.2em; cursor: pointer;">▶</button>
+    </div>
+
+    <div style="text-align: left; margin-bottom: 20px; background: #fafafa; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+        <h4 style="margin: 0 0 10px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px;">🍽️ Gegessen an diesem Tag:</h4>
+        <div id="mealList" style="font-size: 0.9em; color: #555;">Noch keine Mahlzeiten eingetragen.</div>
+    </div>
+
     <button class="btn" id="scanBtn">📷 Barcode Scannen</button>
     <div id="reader"></div>
 
@@ -61,6 +71,8 @@
     const resultArea = document.getElementById('resultArea');
     const barcodeResult = document.getElementById('barcodeResult');
     let html5QrcodeScanner;
+    let loggedInUserId = null;
+    let currentSelectedDate = new Date().toISOString().split('T')[0];
 
     // add click handler to scan button
     scanBtn.addEventListener('click', () => {
@@ -87,42 +99,35 @@
         sendToBackend(decodedText);
     }
 
-    let dailyKcal = 1200;
-    let currentXp = 850;
-    let currentLevel = 5;
+    let dailyKcalTarget = 0;
+    let currentXp = 0;
+    let currentLevel = 0;
     const maxXp = 1000;
 
     // send to backend
     async function sendToBackend(barcode) {
         try {
-            // show loading placeholder
             barcodeResult.innerText = "EAN: " + barcode + "\nSuche in Datenbank...";
-
             const response = await fetch('/api/scan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ barcode: barcode })
             });
-
             const data = await response.json();
 
-            // show result
             if(data.success) {
                 barcodeResult.innerHTML = `
                         <strong style="font-size: 1.2em;">${data.name}</strong><br><br>
                         Kalorien: <strong>${data.kcal} kcal</strong> pro 100g<br><br>
-                        <button class="btn" style="background-color: #4caf50;" onclick="addMeal(${data.kcal})">Als Mahlzeit eintragen</button>
+                        <button class="btn" style="background-color: #4caf50;" onclick="addMeal(${data.kcal}, '${data.name.replace(/'/g, "")}')">Als Mahlzeit eintragen</button>
                     `;
             } else {
                 barcodeResult.innerHTML = `<span style="color: red;">${data.message}</span>`;
             }
         } catch (error) {
-            console.error("Fehler beim Senden:", error);
+            console.error("Fehler:", error);
             barcodeResult.innerText = "Verbindungsfehler zum Server.";
         }
     }
-
-    let loggedInUserId = null;
 
     async function register() {
         const user = document.getElementById('username').value;
@@ -162,67 +167,117 @@
 
     window.onload = () => {
         const savedToken = localStorage.getItem('nutriQuestToken');
-        if (savedToken) loadGame(); // Wenn ein Token da ist, direkt starten
+        if (savedToken) loadGame();
     };
 
     async function loadGame() {
         const token = localStorage.getItem('nutriQuestToken');
-
-        // Mit dem Token im Header rufen wir unsere Daten ab
-        const response = await fetch('/api/user/me', {
-            headers: { 'Authorization': token }
-        });
+        const response = await fetch('/api/user/me', { headers: { 'Authorization': token } });
 
         if (response.status === 403 || response.status === 401) {
-            // Token ist ungültig (jemand hat manipuliert) -> Rauswerfen!
-            logout();
-            return;
+            logout(); return;
         }
 
         document.getElementById('auth-container').style.display = 'none';
         document.getElementById('app-container').style.display = 'block';
 
         const data = await response.json();
-        dailyKcal = data.daily_kcal;
+        dailyKcalTarget = data.daily_kcal;
         currentXp = data.xp;
         currentLevel = data.level;
+
         updateUI();
+        updateDateDisplay();
+        loadDiaryEntries();
+    }
+
+    function changeDate(daysOffset) {
+        let date = new Date(currentSelectedDate);
+        date.setDate(date.getDate() + daysOffset);
+        currentSelectedDate = date.toISOString().split('T')[0];
+
+        updateDateDisplay();
+        loadDiaryEntries();
+    }
+
+    function updateDateDisplay() {
+        const today = new Date().toISOString().split('T')[0];
+        const displayObj = document.getElementById('dateDisplay');
+        if (currentSelectedDate === today) {
+            displayObj.innerText = "📅 Heute (" + currentSelectedDate + ")";
+        } else {
+            displayObj.innerText = "📅 " + currentSelectedDate;
+        }
+    }
+
+    async function loadDiaryEntries() {
+        const token = localStorage.getItem('nutriQuestToken');
+        const res = await fetch('/api/diary/' + currentSelectedDate, {
+            headers: { 'Authorization': token }
+        });
+        const meals = await res.json();
+
+        const listContainer = document.getElementById('mealList');
+        let totalEatenToday = 0;
+
+        if (meals.length === 0) {
+            listContainer.innerHTML = "<em>Keine Einträge an diesem Tag.</em>";
+        } else {
+            let html = "<ul style='padding-left: 20px; margin: 0;'>";
+            meals.forEach(meal => {
+                html += `<li><strong>${meal.food_name}</strong>: ${meal.grams}g (${meal.kcal_consumed} kcal)</li>`;
+                totalEatenToday += meal.kcal_consumed;
+            });
+            html += "</ul>";
+            listContainer.innerHTML = html;
+        }
+
+        let remainingKcal = dailyKcalTarget - totalEatenToday;
+        document.getElementById('kcalDisplay').innerText = remainingKcal + " kcal";
     }
 
     function updateUI() {
-        document.getElementById('kcalDisplay').innerText = dailyKcal + " kcal";
         document.getElementById('levelDisplay').innerText = "⭐ Level " + currentLevel;
         document.getElementById('xpText').innerText = currentXp + " / " + maxXp + " XP";
         document.getElementById('xpFill').style.width = (currentXp / maxXp * 100) + "%";
     }
 
-    async function addMeal(kcalPer100g) {
-        let grams = prompt("Wie viel Gramm hast du davon gegessen?", "100");
+    async function addMeal(kcalPer100g, foodName) {
+        let grams = prompt("Wie viel Gramm hast du von '" + foodName + "' gegessen?", "100");
 
         if (grams !== null && !isNaN(grams) && grams > 0) {
-
             let consumedKcal = Math.round((kcalPer100g * grams) / 100);
-            dailyKcal -= consumedKcal;
-            currentXp += 75;
 
+            currentXp += 75;
             if (currentXp >= maxXp) {
                 currentLevel++;
-                currentXp -= maxXp; // add overflow xp to next level
-                alert("LEVEL UP! Du bist jetzt Level " + currentLevel + "!");
+                currentXp -= maxXp;
+                alert("🎉 LEVEL UP! Du bist jetzt Level " + currentLevel + "!");
             }
 
             updateUI();
             document.getElementById('resultArea').style.display = 'none';
 
-            // store user data
+            const token = localStorage.getItem('nutriQuestToken');
+
             await fetch('/api/user/update', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': localStorage.getItem('nutriQuestToken') // AUSWEIS VORZEIGEN
-                },
-                body: JSON.stringify({ level: currentLevel, xp: currentXp, daily_kcal: dailyKcal })
+                headers: { 'Content-Type': 'application/json', 'Authorization': token },
+                body: JSON.stringify({ level: currentLevel, xp: currentXp, daily_kcal: dailyKcalTarget })
             });
+
+            await fetch('/api/diary/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': token },
+                body: JSON.stringify({
+                    date: currentSelectedDate,
+                    food_name: foodName,
+                    grams: parseInt(grams),
+                    kcal_consumed: consumedKcal
+                })
+            });
+
+            loadDiaryEntries();
 
         } else {
             alert("Bitte gib eine gültige Grammzahl ein!");

@@ -18,13 +18,23 @@ const db = new sqlite3.Database('./nutriquest.db', (err) => {
 // create table if it does not exist
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
-                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                     username TEXT UNIQUE,
-                     password TEXT,
-                     level INTEGER,
-                     xp INTEGER,
-                     daily_kcal INTEGER
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         username TEXT UNIQUE,
+         password TEXT,
+         level INTEGER,
+         xp INTEGER,
+         daily_kcal INTEGER
             )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS diary_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        date TEXT,
+        food_name TEXT,
+        grams INTEGER,
+        kcal_consumed INTEGER,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )`);
 });
 
 app.post('/api/register', async (req: Request, res: Response) => {
@@ -88,6 +98,32 @@ app.post('/api/user/update', authenticateToken, (req: any, res: Response) => {
         (err) => {
             if (err) res.status(500).json({ success: false });
             else res.json({ success: true });
+        }
+    );
+});
+
+app.post('/api/diary/add', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const { date, food_name, grams, kcal_consumed } = req.body;
+
+    db.run("INSERT INTO diary_entries (user_id, date, food_name, grams, kcal_consumed) VALUES (?, ?, ?, ?, ?)",
+        [userId, date, food_name, grams, kcal_consumed],
+        (err) => {
+            if (err) res.status(500).json({ success: false, error: err.message });
+            else res.json({ success: true });
+        }
+    );
+});
+
+app.get('/api/diary/:date', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const date = req.params.date; // format: YYYY-MM-DD
+
+    db.all("SELECT * FROM diary_entries WHERE user_id = ? AND date = ? ORDER BY id DESC",
+        [userId, date],
+        (err, rows) => {
+            if (err) res.status(500).json({ error: err.message });
+            else res.json(rows);
         }
     );
 });
