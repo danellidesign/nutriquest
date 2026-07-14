@@ -27,14 +27,15 @@ db.serialize(() => {
             )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS diary_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        date TEXT,
-        food_name TEXT,
-        grams INTEGER,
-        kcal_consumed INTEGER,
-        FOREIGN KEY(user_id) REFERENCES users(id)
-    )`);
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         user_id INTEGER,
+         date TEXT,
+         food_name TEXT,
+         grams INTEGER,
+         kcal_consumed INTEGER,
+         target_kcal INTEGER,
+         FOREIGN KEY(user_id) REFERENCES users(id)
+        )`);
 });
 
 app.post('/api/register', async (req: Request, res: Response) => {
@@ -104,15 +105,25 @@ app.post('/api/user/update', authenticateToken, (req: any, res: Response) => {
 
 app.post('/api/diary/add', authenticateToken, (req: any, res: Response) => {
     const userId = req.user.userId;
-    const { date, food_name, grams, kcal_consumed } = req.body;
+    const { date, food_name, grams, kcal_consumed, target_kcal } = req.body;
 
-    db.run("INSERT INTO diary_entries (user_id, date, food_name, grams, kcal_consumed) VALUES (?, ?, ?, ?, ?)",
-        [userId, date, food_name, grams, kcal_consumed],
+    db.run("INSERT INTO diary_entries (user_id, date, food_name, grams, kcal_consumed, target_kcal) VALUES (?, ?, ?, ?, ?, ?)",
+        [userId, date, food_name, grams, kcal_consumed, target_kcal],
         (err) => {
             if (err) res.status(500).json({ success: false, error: err.message });
             else res.json({ success: true });
         }
     );
+});
+
+app.delete('/api/diary/:id', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const entryId = req.params.id;
+
+    db.run("DELETE FROM diary_entries WHERE id = ? AND user_id = ?", [entryId, userId], (err) => {
+        if (err) res.status(500).json({ success: false });
+        else res.json({ success: true });
+    });
 });
 
 app.get('/api/diary/:date', authenticateToken, (req: any, res: Response) => {

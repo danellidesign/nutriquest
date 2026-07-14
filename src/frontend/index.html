@@ -39,9 +39,32 @@
         <small id="xpText">850 / 1000 XP</small>
     </div>
 
-    <div style="text-align: center; margin: 30px 0;">
-        <h1 id="kcalDisplay" style="color: #e53935;">1200 kcal</h1>
-        <p>heute noch übrig</p>
+    <div style="display: flex; justify-content: center; margin: 25px 0;">
+        <div id="kcalRing" style="
+                width: 160px;
+                height: 160px;
+                border-radius: 50%;
+                background: conic-gradient(#4caf50 0%, #eee 0%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+                transition: background 0.5s ease;
+            ">
+            <div style="
+                    width: 130px;
+                    height: 130px;
+                    background: white;
+                    border-radius: 50%;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                ">
+                <h1 id="kcalDisplay" style="margin: 0; font-size: 1.6em; color: #333;">1200 kcal</h1>
+                <small id="kcalSubtext" style="color: #666; font-size: 0.8em; margin-top: 4px;">übrig</small>
+            </div>
+        </div>
     </div>
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0; background: #eee; padding: 10px; border-radius: 8px;">
@@ -219,21 +242,59 @@
 
         const listContainer = document.getElementById('mealList');
         let totalEatenToday = 0;
+        let dayTarget = dailyKcalTarget;
 
         if (meals.length === 0) {
             listContainer.innerHTML = "<em>Keine Einträge an diesem Tag.</em>";
         } else {
+            if (meals[0].target_kcal) {
+                dayTarget = meals[0].target_kcal;
+            }
+
             let html = "<ul style='padding-left: 20px; margin: 0;'>";
             meals.forEach(meal => {
-                html += `<li><strong>${meal.food_name}</strong>: ${meal.grams}g (${meal.kcal_consumed} kcal)</li>`;
+                html += `<li style="margin-bottom: 8px;">
+                                <strong>${meal.food_name}</strong>: ${meal.grams}g (${meal.kcal_consumed} kcal)
+                                <button onclick="deleteMeal(${meal.id})" style="background: #ff5252; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; margin-left: 10px; font-weight: bold;">X</button>
+                             </li>`;
                 totalEatenToday += meal.kcal_consumed;
             });
             html += "</ul>";
             listContainer.innerHTML = html;
         }
 
-        let remainingKcal = dailyKcalTarget - totalEatenToday;
-        document.getElementById('kcalDisplay').innerText = remainingKcal + " kcal";
+        let remainingKcal = dayTarget - totalEatenToday;
+        const kcalDisplay = document.getElementById('kcalDisplay');
+        const kcalSubtext = document.getElementById('kcalSubtext');
+        const kcalRing = document.getElementById('kcalRing');
+
+        let percentage = Math.round((totalEatenToday / dayTarget) * 100);
+
+        if (remainingKcal >= 0) {
+            kcalDisplay.innerText = remainingKcal + " kcal";
+            kcalDisplay.style.color = "#333";
+            kcalSubtext.innerText = "übrig";
+
+            kcalRing.style.background = `conic-gradient(#4caf50 ${percentage}%, #eee ${percentage}%)`;
+        } else {
+            kcalDisplay.innerText = Math.abs(remainingKcal) + " kcal";
+            kcalDisplay.style.color = "#ff5252";
+            kcalSubtext.innerText = "zu viel";
+
+            kcalRing.style.background = "conic-gradient(#ff5252 100%, #eee 100%)";
+        }
+    }
+
+    async function deleteMeal(entryId) {
+        if (!confirm("Möchtest du diesen Eintrag wirklich löschen?")) return;
+
+        const token = localStorage.getItem('nutriQuestToken');
+        await fetch('/api/diary/' + entryId, {
+            method: 'DELETE',
+            headers: { 'Authorization': token }
+        });
+
+        loadDiaryEntries();
     }
 
     function updateUI() {
@@ -273,12 +334,12 @@
                     date: currentSelectedDate,
                     food_name: foodName,
                     grams: parseInt(grams),
-                    kcal_consumed: consumedKcal
+                    kcal_consumed: consumedKcal,
+                    target_kcal: dailyKcalTarget
                 })
             });
 
             loadDiaryEntries();
-
         } else {
             alert("Bitte gib eine gültige Grammzahl ein!");
         }
