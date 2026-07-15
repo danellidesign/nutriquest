@@ -39,12 +39,13 @@ db.serialize(() => {
 });
 
 app.post('/api/register', async (req: Request, res: Response) => {
-    const { username, password } = req.body;
+    const { username, password, daily_kcal } = req.body;
 
+    const targetKcal = parseInt(daily_kcal) || 2000;
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    db.run("INSERT INTO users (username, password, level, xp, daily_kcal) VALUES (?, ?, 1, 0, 2000)",
-        [username, hashedPassword],
+    db.run("INSERT INTO users (username, password, level, xp, daily_kcal) VALUES (?, ?, 1, 0, ?)",
+        [username, hashedPassword, targetKcal],
         function(err) {
             if (err) {
                 res.status(400).json({ success: false, message: "Nutzername existiert bereits!" });
@@ -86,9 +87,26 @@ const authenticateToken = (req: any, res: Response, next: any) => {
 // get user data
 app.get('/api/user/me', authenticateToken, (req: any, res: Response) => {
     const userId = req.user.userId;
-    db.get("SELECT level, xp, daily_kcal FROM users WHERE id = ?", [userId], (err, row) => {
+
+    db.get("SELECT username, level, xp, daily_kcal FROM users WHERE id = ?", [userId], (err, row) => {
         res.json(row);
     });
+});
+
+app.put('/api/user/profile', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const { username, daily_kcal } = req.body;
+
+    db.run("UPDATE users SET username = ?, daily_kcal = ? WHERE id = ?",
+        [username, daily_kcal, userId],
+        function(err) {
+            if (err) {
+                res.status(400).json({ success: false, message: "Nutzername bereits vergeben oder Fehler!" });
+            } else {
+                res.json({ success: true });
+            }
+        }
+    );
 });
 
 app.post('/api/user/update', authenticateToken, (req: any, res: Response) => {

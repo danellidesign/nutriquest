@@ -13,25 +13,43 @@
         .btn { display: block; width: 100%; padding: 10px; background: #007bff; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; cursor: pointer; border: none; }
         #reader { width: 100%; margin-top: 20px; display: none; }
         #resultArea { margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 5px; text-align: center; display: none; border: 1px solid #4caf50; }
-        #auth-container, #app-container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        #login-container, #register-container, #app-container, #profile-container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         input { width: 90%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-<div id="auth-container">
-    <h2 style="text-align: center;">Willkommen bei NutriQuest</h2>
-    <input type="text" id="username" placeholder="Nutzername">
-    <input type="password" id="password" placeholder="Passwort">
+<div id="login-container">
+    <h2 style="text-align: center; color: #333;">📱 Einloggen</h2>
+    <input type="text" id="login-username" placeholder="Dein Nickname">
+    <input type="password" id="login-password" placeholder="Dein Passwort">
     <button class="btn" onclick="login()">Einloggen</button>
-    <button class="btn" style="background: #9e9e9e;" onclick="register()">Registrieren</button>
-    <p id="auth-message" style="color: red; text-align: center;"></p>
+
+    <p style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #666;">
+        Noch kein NutriQuest-Konto?<br>
+        <a href="#" onclick="showRegisterView(); return false;" style="color: #007bff; font-weight: bold; text-decoration: none;">✨ Jetzt kostenlos registrieren</a>
+    </p>
+    <p id="login-message" style="color: red; text-align: center;"></p>
+</div>
+
+<div id="register-container" style="display: none;">
+    <h2 style="text-align: center; color: #333;">✨ Neu bei NutriQuest</h2>
+    <input type="text" id="reg-username" placeholder="Wunsch-Nickname">
+    <input type="password" id="reg-password" placeholder="Passwort wählen">
+    <input type="number" id="reg-kcal" placeholder="Wunsch-Kalorienziel (z.B. 2000)">
+    <button class="btn" style="background: #28a745;" onclick="register()">Account erstellen</button>
+
+    <p style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #666;">
+        Du hast schon einen Account?<br>
+        <a href="#" onclick="showLoginView(); return false;" style="color: #007bff; font-weight: bold; text-decoration: none;">◀ Zurück zum Login</a>
+    </p>
+    <p id="reg-message" style="color: red; text-align: center;"></p>
 </div>
 
 <div id="app-container" style="display: none;">
     <div class="header">
         <h2>NutriQuest</h2>
-        <p><strong>Nickname</strong></p>
+        <p id="avatarDisplay"><strong>Nickname</strong></p>
         <p id="levelDisplay">⭐ Level 5</p>
         <div class="xp-bar">
             <div class="xp-fill" id="xpFill" style="width: 85%;"></div>
@@ -85,7 +103,21 @@
         <h3 style="margin: 0; color: #2e7d32;">Code erkannt!</h3>
         <p id="barcodeResult"></p>
     </div>
-    <button class="btn" style="background: #ff5252;" onclick="logout()">Ausloggen</button>
+    <button class="btn" style="background: #6c757d; margin-top: 20px;" onclick="showProfile()">⚙️ Profil & Einstellungen</button>
+    <button class="btn" style="background: #ff5252; margin-top: 10px;" onclick="logout()">Ausloggen</button>
+</div>
+
+<div id="profile-container" style="display: none; max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+    <h2 style="text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px;">⚙️ Deine Einstellungen</h2>
+
+    <label style="font-weight: bold; display: block; margin-top: 15px; color: #555;">Dein Nickname:</label>
+    <input type="text" id="prof-username" style="margin-top: 5px;">
+
+    <label style="font-weight: bold; display: block; margin-top: 15px; color: #555;">Tages-Kalorienziel (kcal):</label>
+    <input type="number" id="prof-kcal" style="margin-top: 5px;">
+
+    <button class="btn" style="background: #4caf50;" onclick="saveProfile()">💾 Änderungen speichern</button>
+    <button class="btn" style="background: #9e9e9e;" onclick="showDashboard()">◀ Zurück zum Dashboard</button>
 </div>
 
 <script>
@@ -95,6 +127,7 @@
     const barcodeResult = document.getElementById('barcodeResult');
     let html5QrcodeScanner;
     let loggedInUserId = null;
+    let currentUsername = "";
     let currentSelectedDate = new Date().toISOString().split('T')[0];
 
     // add click handler to scan button
@@ -153,33 +186,45 @@
     }
 
     async function register() {
-        const user = document.getElementById('username').value;
-        const pass = document.getElementById('password').value;
+        const user = document.getElementById('reg-username').value;
+        const pass = document.getElementById('reg-password').value;
+        const kcal = document.getElementById('reg-kcal').value;
+
+        if (!user || !pass) {
+            document.getElementById('reg-message').innerText = "Bitte Nickname und Passwort ausfüllen!";
+            return;
+        }
+
         const res = await fetch('/api/register', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user, password: pass })
+            body: JSON.stringify({ username: user, password: pass, daily_kcal: kcal })
         });
         const data = await res.json();
+
         if (data.success) {
-            alert("Erfolgreich registriert! Du kannst dich nun einloggen.");
+            alert("🎉 Erfolgreich registriert! Du kannst dich jetzt direkt mit deinen Daten einloggen.");
+            showLoginView();
+            document.getElementById('login-username').value = user;
         } else {
-            document.getElementById('auth-message').innerText = data.message;
+            document.getElementById('reg-message').innerText = data.message;
         }
     }
 
     async function login() {
-        const user = document.getElementById('username').value;
-        const pass = document.getElementById('password').value;
+        const user = document.getElementById('login-username').value;
+        const pass = document.getElementById('login-password').value;
+
         const res = await fetch('/api/login', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: user, password: pass })
         });
         const data = await res.json();
+
         if (data.success) {
             localStorage.setItem('nutriQuestToken', data.token);
             loadGame();
         } else {
-            document.getElementById('auth-message').innerText = data.message;
+            document.getElementById('login-message').innerText = data.message;
         }
     }
 
@@ -201,13 +246,18 @@
             logout(); return;
         }
 
-        document.getElementById('auth-container').style.display = 'none';
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('register-container').style.display = 'none';
+        document.getElementById('profile-container').style.display = 'none';
         document.getElementById('app-container').style.display = 'block';
 
         const data = await response.json();
         dailyKcalTarget = data.daily_kcal;
         currentXp = data.xp;
         currentLevel = data.level;
+        currentUsername = data.username;
+
+        document.getElementById('avatarDisplay').innerHTML = `<strong style="color: #007bff; font-size: 1.1em;">${currentUsername}</strong>`;
 
         updateUI();
         updateDateDisplay();
@@ -343,6 +393,58 @@
         } else {
             alert("Bitte gib eine gültige Grammzahl ein!");
         }
+    }
+
+    function showProfile() {
+        // Dashboard verstecken, Profil anzeigen
+        document.getElementById('app-container').style.display = 'none';
+        document.getElementById('profile-container').style.display = 'block';
+
+        // Aktuelle Werte in die Felder eintragen
+        document.getElementById('prof-username').value = currentUsername;
+        document.getElementById('prof-kcal').value = dailyKcalTarget;
+    }
+
+    function showDashboard() {
+        document.getElementById('profile-container').style.display = 'none';
+        loadGame();
+    }
+
+    async function saveProfile() {
+        const newName = document.getElementById('prof-username').value;
+        const newKcal = parseInt(document.getElementById('prof-kcal').value);
+
+        if (!newName || !newKcal || newKcal < 500) {
+            alert("Bitte gib einen gültigen Nicknamen und mindestens 500 kcal ein!");
+            return;
+        }
+
+        const token = localStorage.getItem('nutriQuestToken');
+        const res = await fetch('/api/user/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': token },
+            body: JSON.stringify({ username: newName, daily_kcal: newKcal })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            alert("✅ Profil erfolgreich aktualisiert!");
+            showDashboard();
+        } else {
+            alert("❌ " + data.message);
+        }
+    }
+
+    function showRegisterView() {
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('register-container').style.display = 'block';
+        document.getElementById('reg-message').innerText = "";
+    }
+
+    function showLoginView() {
+        document.getElementById('register-container').style.display = 'none';
+        document.getElementById('login-container').style.display = 'block';
+        document.getElementById('login-message').innerText = "";
     }
 </script>
 </body>
