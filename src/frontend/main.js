@@ -3,9 +3,18 @@ const readerDiv = document.getElementById('reader');
 const resultArea = document.getElementById('resultArea');
 const barcodeResult = document.getElementById('barcodeResult');
 let html5QrcodeScanner;
-let loggedInUserId = null;
 let currentUsername = "";
 let currentSelectedDate = new Date().toISOString().split('T')[0];
+let dailyKcalTarget = 0;
+let currentXp = 0;
+let currentLevel = 0;
+const maxXp = 1000;
+
+// init app on window load
+window.onload = () => {
+    const savedToken = localStorage.getItem('nutriQuestToken');
+    if (savedToken) loadGame();
+};
 
 // add click handler to scan button
 scanBtn.addEventListener('click', () => {
@@ -21,47 +30,7 @@ scanBtn.addEventListener('click', () => {
     html5QrcodeScanner.render(onScanSuccess);
 });
 
-function onScanSuccess(decodedText) {
-    html5QrcodeScanner.clear();
-    readerDiv.style.display = 'none';
-    scanBtn.style.display = 'block';
-
-    resultArea.style.display = 'block';
-    barcodeResult.innerText = "EAN: " + decodedText;
-
-    sendToBackend(decodedText);
-}
-
-let dailyKcalTarget = 0;
-let currentXp = 0;
-let currentLevel = 0;
-const maxXp = 1000;
-
-// send to backend
-async function sendToBackend(barcode) {
-    try {
-        barcodeResult.innerText = "EAN: " + barcode + "\nSuche in Datenbank...";
-        const response = await fetch('/api/scan', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ barcode: barcode })
-        });
-        const data = await response.json();
-
-        if(data.success) {
-            barcodeResult.innerHTML = `
-                        <strong style="font-size: 1.2em;">${data.name}</strong><br><br>
-                        Kalorien: <strong>${data.kcal} kcal</strong> pro 100g<br><br>
-                        <button class="btn" style="background-color: #4caf50;" onclick="addMeal(${data.kcal}, '${data.name.replace(/'/g, "")}')">Als Mahlzeit eintragen</button>
-                    `;
-        } else {
-            barcodeResult.innerHTML = `<span style="color: red;">${data.message}</span>`;
-        }
-    } catch (error) {
-        console.error("Fehler:", error);
-        barcodeResult.innerText = "Verbindungsfehler zum Server.";
-    }
-}
-
+// register user
 async function register() {
     const user = document.getElementById('reg-username').value;
     const pass = document.getElementById('reg-password').value;
@@ -87,6 +56,7 @@ async function register() {
     }
 }
 
+// login
 async function login() {
     const user = document.getElementById('login-username').value;
     const pass = document.getElementById('login-password').value;
@@ -105,16 +75,13 @@ async function login() {
     }
 }
 
+// logout
 function logout() {
     localStorage.removeItem('nutriQuestToken');
     location.reload();
 }
 
-window.onload = () => {
-    const savedToken = localStorage.getItem('nutriQuestToken');
-    if (savedToken) loadGame();
-};
-
+// load application handler
 async function loadGame() {
     const token = localStorage.getItem('nutriQuestToken');
     const response = await fetch('/api/user/me', { headers: { 'Authorization': token } });
@@ -139,6 +106,43 @@ async function loadGame() {
     updateUI();
     updateDateDisplay();
     loadDiaryEntries();
+}
+
+// send barcode to backend handler
+function onScanSuccess(decodedText) {
+    html5QrcodeScanner.clear();
+    readerDiv.style.display = 'none';
+    scanBtn.style.display = 'block';
+
+    resultArea.style.display = 'block';
+    barcodeResult.innerText = "EAN: " + decodedText;
+
+    sendToBackend(decodedText);
+}
+
+// send barcode to backend to try to fetch data related to barcode
+async function sendToBackend(barcode) {
+    try {
+        barcodeResult.innerText = "EAN: " + barcode + "\nSuche in Datenbank...";
+        const response = await fetch('/api/scan', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barcode: barcode })
+        });
+        const data = await response.json();
+
+        if(data.success) {
+            barcodeResult.innerHTML = `
+                        <strong style="font-size: 1.2em;">${data.name}</strong><br><br>
+                        Kalorien: <strong>${data.kcal} kcal</strong> pro 100g<br><br>
+                        <button class="btn" style="background-color: #4caf50;" onclick="addMeal(${data.kcal}, '${data.name.replace(/'/g, "")}')">Als Mahlzeit eintragen</button>
+                    `;
+        } else {
+            barcodeResult.innerHTML = `<span style="color: red;">${data.message}</span>`;
+        }
+    } catch (error) {
+        console.error("Fehler:", error);
+        barcodeResult.innerText = "Verbindungsfehler zum Server.";
+    }
 }
 
 function changeDate(daysOffset) {
@@ -311,6 +315,8 @@ async function saveProfile() {
         alert("❌ " + data.message);
     }
 }
+
+// views
 
 function showRegisterView() {
     document.getElementById('login-container').style.display = 'none';

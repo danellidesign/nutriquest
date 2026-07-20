@@ -38,6 +38,30 @@ db.serialize(() => {
         )`);
 });
 
+const authenticateToken = (req: any, res: Response, next: any) => {
+    const token = req.headers['authorization'];
+    if (!token) return res.status(401).json({ message: "Kein Token gefunden" });
+
+    jwt.verify(token, SECRET_KEY, (err: any, decodedUser: any) => {
+        if (err) return res.status(403).json({ message: "Token ungültig oder abgelaufen" });
+        req.user = decodedUser;
+        next();
+    });
+};
+
+// port for backend service and path to frontend files
+const PORT = 3000;
+const frontendPath = path.join(__dirname, '../frontend');
+
+// boot up express server
+app.use(express.static(frontendPath));
+app.listen(PORT, () => {
+    console.log(`Server running: http://localhost:${PORT}`);
+});
+
+// api routes
+
+// general routes for stuff like registering, logging in etc.
 app.post('/api/register', async (req: Request, res: Response) => {
     const { username, password, daily_kcal } = req.body;
 
@@ -53,6 +77,10 @@ app.post('/api/register', async (req: Request, res: Response) => {
                 res.json({ success: true, userId: this.lastID });
             }
         });
+});
+
+app.get('/api/status', (req: Request, res: Response) => {
+    res.json({ message: "Backend API Test" });
 });
 
 app.post('/api/login', (req: Request, res: Response) => {
@@ -71,20 +99,7 @@ app.post('/api/login', (req: Request, res: Response) => {
     });
 });
 
-const authenticateToken = (req: any, res: Response, next: any) => {
-    const token = req.headers['authorization'];
-    if (!token) return res.status(401).json({ message: "Kein Token gefunden" });
-
-    jwt.verify(token, SECRET_KEY, (err: any, decodedUser: any) => {
-        if (err) return res.status(403).json({ message: "Token ungültig oder abgelaufen" });
-        req.user = decodedUser;
-        next();
-    });
-};
-
-// api routes for db
-
-// get user data
+// user routes
 app.get('/api/user/me', authenticateToken, (req: any, res: Response) => {
     const userId = req.user.userId;
 
@@ -121,6 +136,7 @@ app.post('/api/user/update', authenticateToken, (req: any, res: Response) => {
     );
 });
 
+// diary routes
 app.post('/api/diary/add', authenticateToken, (req: any, res: Response) => {
     const userId = req.user.userId;
     const { date, food_name, grams, kcal_consumed, target_kcal } = req.body;
@@ -157,15 +173,6 @@ app.get('/api/diary/:date', authenticateToken, (req: any, res: Response) => {
     );
 });
 
-const PORT = 3000;
-
-const frontendPath = path.join(__dirname, '../frontend');
-app.use(express.static(frontendPath));
-
-app.get('/api/status', (req: Request, res: Response) => {
-    res.json({ message: "Backend API Test" });
-});
-
 app.post('/api/scan', async (req: Request, res: Response) => {
     const receivedBarcode = req.body.barcode;
     console.log(`Backend sucht nach Barcode: ${receivedBarcode}`);
@@ -183,6 +190,7 @@ app.post('/api/scan', async (req: Request, res: Response) => {
             const kcal = product.nutriments['energy-kcal_100g'] || 0;
 
             console.log(`✅ Gefunden: ${name} (${kcal} kcal/100g)`);
+            console.log(data);
 
             // send json response to frontend
             res.json({ success: true, name: name, kcal: kcal });
@@ -194,8 +202,4 @@ app.post('/api/scan', async (req: Request, res: Response) => {
         console.error("Fehler bei der API-Abfrage:", error);
         res.status(500).json({ success: false, message: "Server-Fehler bei der API-Abfrage." });
     }
-});
-
-app.listen(PORT, () => {
-    console.log(`Server running: http://localhost:${PORT}`);
 });
