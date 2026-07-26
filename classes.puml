@@ -1,0 +1,117 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor #f8f9fa
+    ArrowColor #0056b3
+    BorderColor #333333
+}
+skinparam package {
+    BorderColor #888888
+    BackgroundColor #fcfcfc
+}
+
+title Klassendiagramm: Architektur NutriQuest
+
+package "Datenbank-Entitäten" {
+    class User {
+        + id : Integer [PK]
+        + username : String [Unique]
+        + password : String [Hash]
+        + level : Integer
+        + xp : Integer
+        + daily_kcal : Integer
+    }
+
+    class DiaryEntry {
+        + id : Integer [PK]
+        + user_id : Integer [FK]
+        + date : String [ISO-8601]
+        + food_name : String
+        + grams : Integer
+        + kcal_consumed : Integer
+        + target_kcal : Integer
+    }
+
+    User "1" *-- "0..*" DiaryEntry : besitzt >
+}
+
+package "Backend" {
+    class AuthMiddleware {
+        + authenticateToken(req, res, next) : void
+    }
+
+    class AuthController {
+        + register(req, res) : void
+        + login(req, res) : void
+    }
+
+    class UserController {
+        + getUser(req, res) : void
+        + updateProfile(req, res) : void
+    }
+
+    class DiaryController {
+        + addEntry(req, res) : void
+        + getEntriesByDate(req, res) : void
+        + deleteEntry(req, res) : void
+    }
+
+    class NutritionService {
+        + fetchNutritionData(barcode: String) : JSON
+    }
+
+    AuthController .up.> User : <<creates/reads>>
+    UserController .up.> User : <<reads/updates>>
+    DiaryController .up.> DiaryEntry : <<CRUD>>
+    AuthMiddleware --> AuthController : sichert
+    AuthMiddleware --> UserController : sichert
+    AuthMiddleware --> DiaryController : sichert
+}
+
+package "Frontend" {
+    class AuthView {
+        + showLoginView() : void
+        + showRegisterView() : void
+        + login() : Promise<void>
+        + register() : Promise<void>
+        + logout() : void
+    }
+
+    class ProfileView {
+        + showProfile() : void
+        + showDashboard() : void
+        + saveProfile() : Promise<void>
+    }
+
+    class DashboardView {
+        + loadGame() : Promise<void>
+        + updateUI() : void
+    }
+
+    class DiaryView {
+        + changeDate(daysOffset: Integer) : void
+        + updateDateDisplay() : void
+        + loadDiaryEntries() : Promise<void>
+        + deleteMeal(entryId: Integer) : Promise<void>
+    }
+
+    class ScannerView {
+        - html5QrcodeScanner : Object
+        + initScanner() : void
+        + onScanSuccess(decodedText: String) : void
+        + sendToBackend(barcode: String) : Promise<void>
+        + addMeal(kcalPer100g: Integer, foodName: String) : Promise<void>
+    }
+
+    DashboardView --> DiaryView : integriert
+    DashboardView --> ScannerView : integriert
+}
+
+' Verbindungen zwischen Frontend und Backend (HTTP REST)
+AuthView ..> AuthController : <<HTTP POST>>
+ProfileView ..> UserController : <<HTTP PUT>>
+DashboardView ..> UserController : <<HTTP GET>>
+DiaryView ..> DiaryController : <<HTTP GET/POST/DELETE>>
+ScannerView ..> NutritionService : <<HTTP POST /api/scan>>
+
+@enduml

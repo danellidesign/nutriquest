@@ -1,0 +1,82 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam activity {
+    BackgroundColor #f8f9fa
+    BorderColor #0056b3
+    ArrowColor #0056b3
+}
+skinparam swimlane {
+    BorderColor #888888
+    TitleBackgroundColor #E6F2FF
+    TitleFontColor #333333
+}
+
+title Aktivitätsdiagramm: Geschäftsprozess "Mahlzeit erfassen & Gamification"
+
+|#FFF9E6|Benutzer (Client UI)|
+start
+:Klickt auf "Barcode Scannen";
+:Hält Produkt vor die Kamera;
+
+|#E6F2FF|Systemlogik (Client & Server)|
+:Kamera-Stream aktivieren &
+EAN-Barcode dekodieren;
+:HTTP POST /api/scan senden;
+
+|#F0F4F8|Externe API & Datenbank|
+:Open Food Facts API abfragen
+(GET /product/{EAN}.json);
+
+if (Produkt in API gefunden?) then (ja)
+    :Nährwertangaben extrahieren
+    (Produktname, kcal/100g);
+else (nein)
+    |#E6F2FF|Systemlogik (Client & Server)|
+    :Fehlermeldung ausgeben:
+    "Produkt nicht gefunden";
+    stop
+endif
+
+|#FFF9E6|Benutzer (Client UI)|
+:Ergebnis anzeigen (Name & kcal);
+:Grammanzahl über Eingabemaske eintragen;
+
+|#E6F2FF|Systemlogik (Client & Server)|
+:Kalorien berechnen;
+:XP berechnen;
+:Aktueller XP-Stand += berechnete XP;
+
+if (Aktueller XP-Stand >= 1000 XP?) then (ja)
+    :Level erhöhen (Level++);
+    :Überschüssige XP ins
+    neue Level übertragen;
+    |#FFF9E6|Benutzer (Client UI)|
+    :Level-Up Animation / Alert ausgeben;
+    |#E6F2FF|Systemlogik (Client & Server)|
+else (nein)
+endif
+
+:Parallele Datensicherung
+via Bearer-JWT initiieren;
+
+fork
+    |#F0F4F8|Externe API & Datenbank|
+    :User-Stammdaten aktualisieren
+    (UPDATE users: Level, XP, Target);
+fork again
+    |#F0F4F8|Externe API & Datenbank|
+    :Mahlzeit historisch eintragen
+    (INSERT INTO diary_entries
+    inkl. Snapshot "target_kcal");
+end fork
+
+|#E6F2FF|Systemlogik (Client & Server)|
+:Ring-Chart &
+Tagebuchliste neu berechnen;
+
+|#FFF9E6|Benutzer (Client UI)|
+:Aktualisiertes Dashboard anzeigen
+(Restkalorien, neuer Ring, Mahlzeit in Liste);
+
+stop
+@enduml

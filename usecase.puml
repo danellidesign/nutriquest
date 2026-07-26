@@ -1,0 +1,54 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam backgroundColor #FFFFFF
+
+skinparam actor {
+    BorderColor #333333
+    BackgroundColor #f8f9fa
+}
+
+skinparam usecase {
+    BorderColor #0056b3
+    BackgroundColor #E6F2FF
+    ArrowColor #0056b3
+}
+
+actor "Benutzer" as User
+actor "Open Food Facts API" as OFF_API <<System>>
+actor "Gerätekamera" as Camera <<Hardware>>
+
+rectangle "NutriQuest" {
+    usecase (Registrieren & Kalorienziel festlegen) as UC_Register
+    usecase (Anmelden via JWT) as UC_Login
+
+    usecase (Lebensmittel-Barcode scannen) as UC_Scan
+    usecase (Grammanzahl eingeben & Mahlzeit erfassen) as UC_AddMeal
+    usecase (Ernährungstagebuch einsehen & blättern) as UC_ViewDiary
+    usecase (Tagebucheintrag löschen) as UC_DeleteMeal
+
+    usecase (Gamification-Dashboard einsehen\n[Level, XP & Kalorien-Ring]) as UC_Dashboard
+    usecase (Profil & Tages-Kalorienziel anpassen) as UC_Profile
+
+    usecase (Nährwertangaben abrufen) as UC_FetchNutrition
+    usecase (XP berechnen & Level-Up prüfen) as UC_Gamification
+}
+
+User --> UC_Register
+User --> UC_Login
+User --> UC_Scan
+User --> UC_AddMeal
+User --> UC_ViewDiary
+User --> UC_DeleteMeal
+User --> UC_Dashboard
+User --> UC_Profile
+
+UC_Scan --> Camera : <<uses>>
+UC_Scan ..> UC_FetchNutrition : <<include>>
+UC_FetchNutrition --> OFF_API : <<uses>>
+
+UC_AddMeal ..> UC_Gamification : <<include>>
+UC_AddMeal ..> UC_Dashboard : <<include>>
+UC_ViewDiary ..> UC_Dashboard : <<extends>>
+
+@enduml
