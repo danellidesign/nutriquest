@@ -152,6 +152,7 @@ function changeDate(daysOffset) {
 
     updateDateDisplay();
     loadDiaryEntries();
+    loadQuests();
 }
 
 function updateDateDisplay() {
@@ -213,6 +214,71 @@ async function loadDiaryEntries() {
         kcalSubtext.innerText = "zu viel";
 
         kcalRing.style.background = "conic-gradient(#ff5252 100%, #eee 100%)";
+    }
+    loadQuests();
+}
+
+async function loadQuests() {
+    const token = localStorage.getItem('nutriQuestToken');
+    const res = await fetch('/api/quests/' + currentSelectedDate, {
+        headers: { 'Authorization': token }
+    });
+    const quests = await res.json();
+
+    const container = document.getElementById('questList');
+    let html = "";
+
+    const today = new Date().toISOString().split('T')[0];
+    const isToday = (currentSelectedDate === today);
+
+    quests.forEach(q => {
+        let progress = Math.min(100, Math.round((q.current / q.target) * 100));
+        let isCompleted = q.current >= q.target;
+
+        html += `<div style="background: white; padding: 8px; border-radius: 5px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <strong>${q.title} <span style="color: #f57c00; font-size: 0.9em;">(+${q.xp} XP)</span></strong>
+                        <small style="color: #666;">${q.current} / ${q.target}</small>
+                    </div>
+                    <small style="display: block; color: #555; margin-bottom: 5px;">${q.desc}</small>`;
+
+        if (q.claimed) {
+            html += `<button disabled style="width: 100%; padding: 5px; background: #e0e0e0; color: #777; border: none; border-radius: 4px; font-weight: bold;">✅ Eingelöst</button>`;
+        } else if (isCompleted) {
+            if (isToday) {
+                html += `<button onclick="claimQuest('${q.id}')" style="width: 100%; padding: 5px; background: #fbc02d; color: #333; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🎁 XP Abholen!</button>`;
+            } else {
+                html += `<button disabled style="width: 100%; padding: 5px; background: #ffe0b2; color: #d84315; border: none; border-radius: 4px; font-weight: bold;">⏳ Abgelaufen</button>`;
+            }
+        } else {
+            html += `<div style="background: #eee; height: 10px; border-radius: 5px; overflow: hidden;">
+                        <div style="background: #4caf50; width: ${progress}%; height: 100%;"></div>
+                     </div>`;
+        }
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+async function claimQuest(questId) {
+    const token = localStorage.getItem('nutriQuestToken');
+
+    const res = await fetch('/api/quests/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token },
+        body: JSON.stringify({ date: currentSelectedDate, quest_id: questId })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+        if (data.leveledUp) {
+            alert(`🎉 LEVEL UP! Du bist jetzt Level ${data.newLevel}!`);
+        }
+        loadGame();
+    } else {
+        alert(data.message);
     }
 }
 

@@ -36,6 +36,14 @@ db.serialize(() => {
          target_kcal INTEGER,
          FOREIGN KEY(user_id) REFERENCES users(id)
         )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS daily_quests_claimed (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        date TEXT,
+        quest_id TEXT,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )`);
 });
 
 const authenticateToken = (req: any, res: Response, next: any) => {
@@ -202,4 +210,78 @@ app.post('/api/scan', async (req: Request, res: Response) => {
         console.error("Fehler bei der API-Abfrage:", error);
         res.status(500).json({ success: false, message: "Server-Fehler bei der API-Abfrage." });
     }
+});
+
+// quest routes
+const QUEST_RULES: Record<string, { title: string, desc: string, target: number, xp: number }> = {
+    'q1': { title: 'Erster Scan', desc: 'Trage 1 Mahlzeit ein', target: 1, xp: 50 },
+    'q2': { title: 'Sammler', desc: 'Trage 3 Mahlzeiten ein', target: 3, xp: 100 },
+    'q3': { title: 'Energie-Tracker', desc: 'Tracke 1000 kcal', target: 1000, xp: 150 }
+};
+
+app.get('/api/quests/:date', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const date = req.params.date;
+
+    db.all("SELECT * FROM diary_entries WHERE user_id = ? AND date = ?", [userId, date], (err, meals: any[]) => {
+        const mealCount = meals ? meals.length : 0;
+        const totalKcal = meals ? meals.reduce((sum: number, m: any) => sum + m.kcal_consumed, 0) : 0;
+
+        db.all("SELECT quest_id FROM daily_quests_claimed WHERE user_id = ? AND date = ?", [userId, date], (err, claimedRows: any[]) => {
+            const claimed = claimedRows ? claimedRows.map((row: any) => row.quest_id) : [];
+
+            const quests = Object.keys(QUEST_RULES).map(id => {
+                const rule = QUEST_RULES[id]!;
+
+                let current = (id === 'q3') ? totalKcal : mealCount;
+
+                return {
+                    id: id,
+                    title: rule.title,
+                    desc: rule.desc,
+                    target: rule.target,
+                    current: current,
+                    xp: rule.xp,
+                    claimed: claimed.includes(id)
+                };
+            });
+            res.json(quests);
+        });
+    });
+});
+
+app.post('/api/quests/claim', authenticateToken, (req: any, res: Response) => {
+    const userId = req.user.userId;
+    const { date, quest_id } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+    if (date !== today) {
+        return res.status(400).json({ success: false, message: "Quests können nur am aktuellen Tag eingelöst werden!" });
+    }
+
+    const rule = QUEST_RULES[quest_id];
+    if (!rule) {
+        return res.status(400).json({ success: false, message: "Manipulationsversuch erkannt: Ungültige Quest." });
+    }
+
+    const xp_reward = rule.xp;
+
+    db.run("INSERT INTO daily_quests_claimed (user_id, date, quest_id) VALUES (?, ?, ?)", [userId, date, quest_id], function(err) {
+        if (err) return res.status(500).json({ success: false });
+
+        db.get("SELECT xp, level FROM users WHERE id = ?", [userId], (err, user: any) => {
+            let newXp = user.xp + xp_reward;
+            let newLevel = user.level;
+            let leveledUp = false;
+
+            if (newXp >= 1000) {
+                newLevel++;
+                newXp -= 1000;
+                leveledUp = true;
+            }
+
+            db.run("UPDATE users SET xp = ?, level = ? WHERE id = ?", [newXp, newLevel, userId], () => {
+                res.json({ success: true, leveledUp: leveledUp, newLevel: newLevel });
+            });
+        });
+    });
 });
