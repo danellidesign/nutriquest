@@ -30,6 +30,9 @@ rectangle "NutriQuest" {
     usecase (Gamification-Dashboard einsehen\n[Level, XP & Kalorien-Ring]) as UC_Dashboard
     usecase (Profil & Tages-Kalorienziel anpassen) as UC_Profile
 
+    usecase (Tagesquests einsehen) as UC_ViewQuests
+    usecase (Quest-Belohnung einlösen) as UC_ClaimQuest
+
     usecase (Nährwertangaben abrufen) as UC_FetchNutrition
     usecase (XP berechnen & Level-Up prüfen) as UC_Gamification
 }
@@ -42,6 +45,8 @@ User --> UC_ViewDiary
 User --> UC_DeleteMeal
 User --> UC_Dashboard
 User --> UC_Profile
+User --> UC_ViewQuests
+User --> UC_ClaimQuest
 
 UC_Scan --> Camera : <<uses>>
 UC_Scan ..> UC_FetchNutrition : <<include>>
@@ -50,5 +55,7 @@ UC_FetchNutrition --> OFF_API : <<uses>>
 UC_AddMeal ..> UC_Gamification : <<include>>
 UC_AddMeal ..> UC_Dashboard : <<include>>
 UC_ViewDiary ..> UC_Dashboard : <<extends>>
+UC_ViewQuests ..> UC_Dashboard : <<extends>>
+UC_ClaimQuest ..> UC_Gamification : <<include>>
 
 @enduml

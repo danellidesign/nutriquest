@@ -23,7 +23,7 @@ end box
 box "Server (Backend)" #E6F2FF
     participant "NutritionService" as Nutri
     participant "AuthMiddleware" as Auth
-    participant "User/Diary Controller" as Ctrl
+    participant "User/Diary/Quest Controller" as Ctrl
 end box
 
 database "SQLite DB" as DB
@@ -31,71 +31,61 @@ collections "Open Food Facts\n(Externe API)" as ExtAPI
 
 == 1. Barcode-Erkennung & API-Abfrage ==
 
-User -> Scanner : Klickt "Barcode Scannen" &\nhält Produkt vor Kamera
+User -> Scanner : Klickt "Barcode Scannen"
 activate Scanner
-
-Scanner -> Scanner : WebRTC-Video dekodieren\n(EAN-Barcode extrahieren)
-
-Scanner -> Nutri : POST /api/scan\n{ barcode: EAN }
+Scanner -> Nutri : POST /api/scan { barcode: EAN }
 activate Nutri
-
 Nutri -> ExtAPI : GET /api/v0/product/{EAN}.json
-activate ExtAPI
 ExtAPI --> Nutri : JSON-Nährwertdaten
-deactivate ExtAPI
-
-Nutri -> Nutri : Nährwerte filtern\n(Name, kcal pro 100g)
-Nutri --> Scanner : HTTP 200 OK\n{ success: true, name, kcal }
+Nutri --> Scanner : HTTP 200 { success: true, name, kcal }
 deactivate Nutri
 
-== 2. Benutzereingabe & Clientseitige Berechnung ==
+== 2. Benutzereingabe & Berechnung ==
 
 Scanner -> User : Prompt: Grammanzahl eingeben
 User --> Scanner : Eingabe bestätigt (z.B. 200g)
+Scanner -> Scanner : Kalorien & XP berechnen\nLevel-Up prüfen
 
-Scanner -> Scanner : Kalorien berechnen: (kcal * g) / 100\nXP addieren (+75)\nLevel-Up-Schwelle (1000 XP) prüfen
+== 3. Persistierung ==
 
-== 3. Abgesicherte Persistierung ==
-
-par Werte aktualisieren (User Stamm-/Spieldaten)
-    Scanner -> Auth : POST /api/user/update\n[Header: Authorization: Bearer <JWT>]\n{ level, xp, daily_kcal }
+par User-Stammdaten aktualisieren
+    Scanner -> Auth : POST /api/user/update [JWT]
     activate Auth
-    Auth -> Auth : JWT kryptografisch verifizieren
-    Auth -> Ctrl : Weiterleitung mit req.user.userId
-    activate Ctrl
-    Ctrl -> DB : UPDATE users SET level=?, xp=? ...
-    activate DB
-    DB --> Ctrl : OK
-    deactivate DB
-    Ctrl --> Auth : HTTP 200 OK
-    Auth --> Scanner : { success: true }
-    deactivate Ctrl
+    Auth -> Ctrl : validiert & leitet weiter
+    Ctrl -> DB : UPDATE users SET level, xp...
+    Ctrl --> Auth : OK
+    Auth --> Scanner : HTTP 200 OK
     deactivate Auth
-else Tagebucheintrag
-    Scanner -> Auth : POST /api/diary/add\n[Header: Authorization: Bearer <JWT>]\n{ date, food_name, grams, kcal, target_kcal }
+else Tagebucheintrag sichern
+    Scanner -> Auth : POST /api/diary/add [JWT]
     activate Auth
-    Auth -> Auth : JWT kryptografisch verifizieren
-    Auth -> Ctrl : Weiterleitung mit req.user.userId
-    activate Ctrl
-    Ctrl -> DB : INSERT INTO diary_entries\n(..., target_kcal eingefroren)
-    activate DB
-    DB --> Ctrl : OK
-    deactivate DB
-    Ctrl --> Auth : HTTP 200 OK
-    Auth --> Scanner : { success: true }
-    deactivate Ctrl
+    Auth -> Ctrl : validiert & leitet weiter
+    Ctrl -> DB : INSERT INTO diary_entries
+    Ctrl --> Auth : OK
+    Auth --> Scanner : HTTP 200 OK
     deactivate Auth
 end
 
-== 4. UI-Synchronisation ==
+== 4. UI-Synchronisation & Tagesquests ==
 
-Scanner -> UI : Re-Rendering anstoßen\n(updateUI, loadDiaryEntries)
+Scanner -> UI : Re-Rendering anstoßen
 deactivate Scanner
 activate UI
 
-UI -> UI : Ring-Chart via CSS conic-gradient füllen\n(Grün im Budget / Rot bei Überschreitung)\nTagebuchliste chronologisch aufbauen
+UI -> Auth : GET /api/quests/{heute} [JWT]
+activate Auth
+Auth -> Ctrl : validiert & leitet weiter
+activate Ctrl
+Ctrl -> DB : SELECT COUNT(meals), SUM(kcal)
+Ctrl -> DB : SELECT quest_id FROM daily_quests_claimed
+Ctrl --> Auth : JSON (Sichere Quest-Regeln & Fortschritt)
+deactivate Ctrl
+Auth --> UI : HTTP 200 OK
+deactivate Auth
 
-UI --> User : Dashboard aktualisiert\n(neue XP, Rest-Kalorien, Liste)
+UI -> UI : Ring-Chart füllen &\nQuest-Fortschrittsbalken rendern
+
+UI --> User : Dashboard aktualisiert\n(neue XP, Liste & Quest-Status)
 deactivate UI
 
 @enduml

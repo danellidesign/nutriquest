@@ -11,7 +11,7 @@ skinparam swimlane {
     TitleFontColor #333333
 }
 
-title Aktivitätsdiagramm: Geschäftsprozess "Mahlzeit erfassen & Gamification"
+title Aktivitätsdiagramm: Prozess "Mahlzeit erfassen inkl. Quest-Fortschritt"
 
 |#FFF9E6|Benutzer (Client UI)|
 start
@@ -24,59 +24,49 @@ EAN-Barcode dekodieren;
 :HTTP POST /api/scan senden;
 
 |#F0F4F8|Externe API & Datenbank|
-:Open Food Facts API abfragen
-(GET /product/{EAN}.json);
+:Open Food Facts API abfragen;
 
-if (Produkt in API gefunden?) then (ja)
-    :Nährwertangaben extrahieren
-    (Produktname, kcal/100g);
+if (Produkt gefunden?) then (ja)
+    :Nährwertangaben extrahieren;
 else (nein)
     |#E6F2FF|Systemlogik (Client & Server)|
-    :Fehlermeldung ausgeben:
-    "Produkt nicht gefunden";
+    :Fehlermeldung ausgeben;
     stop
 endif
 
 |#FFF9E6|Benutzer (Client UI)|
-:Ergebnis anzeigen (Name & kcal);
-:Grammanzahl über Eingabemaske eintragen;
+:Grammanzahl eintragen;
 
 |#E6F2FF|Systemlogik (Client & Server)|
-:Kalorien berechnen;
-:XP berechnen;
-:Aktueller XP-Stand += berechnete XP;
-
-if (Aktueller XP-Stand >= 1000 XP?) then (ja)
+:Kalorien & XP berechnen;
+if (XP >= 1000?) then (ja)
     :Level erhöhen (Level++);
-    :Überschüssige XP ins
-    neue Level übertragen;
     |#FFF9E6|Benutzer (Client UI)|
-    :Level-Up Animation / Alert ausgeben;
+    :Level-Up Alert ausgeben;
     |#E6F2FF|Systemlogik (Client & Server)|
 else (nein)
 endif
 
-:Parallele Datensicherung
-via Bearer-JWT initiieren;
+:Parallele Datensicherung initiieren;
 
 fork
     |#F0F4F8|Externe API & Datenbank|
-    :User-Stammdaten aktualisieren
-    (UPDATE users: Level, XP, Target);
+    :User-Stammdaten aktualisieren;
 fork again
     |#F0F4F8|Externe API & Datenbank|
     :Mahlzeit historisch eintragen
-    (INSERT INTO diary_entries
-    inkl. Snapshot "target_kcal");
+    (inkl. Snapshot "target_kcal");
 end fork
 
 |#E6F2FF|Systemlogik (Client & Server)|
-:Ring-Chart &
-Tagebuchliste neu berechnen;
+:Ring-Chart & Tagebuchliste berechnen;
+
+:Tagesquest-Fortschritt live
+vom Server abfragen & auswerten;
 
 |#FFF9E6|Benutzer (Client UI)|
 :Aktualisiertes Dashboard anzeigen
-(Restkalorien, neuer Ring, Mahlzeit in Liste);
+(Restkalorien, Mahlzeiten & Quest-Balken);
 
 stop
 @enduml

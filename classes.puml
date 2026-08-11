@@ -32,7 +32,15 @@ package "Datenbank-Entitäten" {
         + target_kcal : Integer
     }
 
+    class DailyQuestClaimed {
+        + id : Integer [PK]
+        + user_id : Integer [FK]
+        + date : String [ISO-8601]
+        + quest_id : String
+    }
+
     User "1" *-- "0..*" DiaryEntry : besitzt >
+    User "1" *-- "0..*" DailyQuestClaimed : löst ein >
 }
 
 package "Backend" {
@@ -56,6 +64,12 @@ package "Backend" {
         + deleteEntry(req, res) : void
     }
 
+    class QuestController {
+        - QUEST_RULES : Dictionary
+        + getQuestsByDate(req, res) : void
+        + claimQuestReward(req, res) : void
+    }
+
     class NutritionService {
         + fetchNutritionData(barcode: String) : JSON
     }
@@ -63,9 +77,13 @@ package "Backend" {
     AuthController .up.> User : <<creates/reads>>
     UserController .up.> User : <<reads/updates>>
     DiaryController .up.> DiaryEntry : <<CRUD>>
+    QuestController .up.> DailyQuestClaimed : <<creates/reads>>
+    QuestController .up.> User : <<updates XP>>
+
     AuthMiddleware --> AuthController : sichert
     AuthMiddleware --> UserController : sichert
     AuthMiddleware --> DiaryController : sichert
+    AuthMiddleware --> QuestController : sichert
 }
 
 package "Frontend" {
@@ -93,6 +111,8 @@ package "Frontend" {
         + updateDateDisplay() : void
         + loadDiaryEntries() : Promise<void>
         + deleteMeal(entryId: Integer) : Promise<void>
+        + loadQuests() : Promise<void>
+        + claimQuest(questId: String) : Promise<void>
     }
 
     class ScannerView {
@@ -112,6 +132,7 @@ AuthView ..> AuthController : <<HTTP POST>>
 ProfileView ..> UserController : <<HTTP PUT>>
 DashboardView ..> UserController : <<HTTP GET>>
 DiaryView ..> DiaryController : <<HTTP GET/POST/DELETE>>
+DiaryView ..> QuestController : <<HTTP GET/POST>>
 ScannerView ..> NutritionService : <<HTTP POST /api/scan>>
 
 @enduml
