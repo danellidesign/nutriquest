@@ -1,0 +1,41 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor #f8f9fa
+    ArrowColor #0056b3
+    BorderColor #333333
+}
+skinparam classAttributeIconSize 0
+
+title Datenmodell
+
+class User {
+    + id : Integer [PK]
+    + username : String [Unique]
+    + password : String [Hash]
+    + level : Integer
+    + xp : Integer
+    + daily_kcal : Integer
+}
+
+class DiaryEntry {
+    + id : Integer [PK]
+    + user_id : Integer [FK]
+    + date : String [ISO-8601]
+    + food_name : String
+    + grams : Integer
+    + kcal_consumed : Integer
+    + target_kcal : Integer
+}
+
+class DailyQuestClaimed {
+    + id : Integer [PK]
+    + user_id : Integer [FK]
+    + date : String [ISO-8601]
+    + quest_id : String
+}
+
+User "1" *-- "0..*" DiaryEntry : erstellt >
+User "1" *-- "0..*" DailyQuestClaimed : löst ein >
+
+@enduml
